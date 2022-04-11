@@ -1,10 +1,14 @@
 ## EDOARDO
 # Implement train.py and try to separe to main part
+import sys
+sys.path.insert(1, "/Users/gio/Documents/GitHub/BiSeNet")
+
 import argparse
 from cProfile import label
 from xml.etree.ElementTree import Comment
 from torch.utils.data import Dataset, DataLoader
 import os
+from pathlib import Path
 from model.build_BiSeNet import BiSeNet
 import torch
 from tensorboardX import SummaryWriter
@@ -14,8 +18,61 @@ from utils import poly_lr_scheduler
 from utils import reverse_one_hot, compute_global_accuracy, fast_hist, per_class_iu
 from loss import DiceLoss, flatten
 import torch.cuda.amp as amp
+from torchvision import datasets, transforms
+from PIL import Image
+from torchvision.datasets.vision import VisionDataset
+
 
 print("Import terminato")
+
+class CustomDataset(VisionDataset):
+    def __init__(self, root, data_folder, labels_folder, train=True, transforms=transforms.ToTensor()):
+        super().__init__(root, transforms)
+        self.data_folder_path = Path(self.root) / data_folder
+        self.labels_folder_path = Path(self.root) / labels_folder
+        train_samples = [l.split("/")[1] for l in np.loadtxt(f"{root}/train.txt", dtype="unicode")]
+        val_samples = [l.split("/")[1] for l in np.loadtxt(f"{root}/val.txt", dtype="unicode")]
+
+        self.data_folder = data_folder
+        self.labels_folder = labels_folder
+
+
+        data_list = np.array(sorted(self.data_folder_path.glob("*")))
+        labels_list = np.array(sorted(self.labels_folder_path.glob("*")))
+        if train:
+            self.data = [img for img in data_list if str(img).split("/")[-1] in train_samples]
+            
+            self.labels = []
+            for img in labels_list:
+              modified_label = str(img).split("/")[-1].replace("_gtFine_labelIds.png", "_leftImg8bit.png")
+              if modified_label in train_samples:
+                self.labels.append(str(img))
+        else:
+            self.data = [img for img in data_list if str(img).split("/")[-1] in val_samples]
+            self.labels = []
+            for img in labels_list:
+              modified_label = str(img).split("/")[-1].replace("_gtFine_labelIds.png", "_leftImg8bit.png")
+              if modified_label in val_samples:
+                self.labels.append(str(img))
+
+
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, index):
+        image_path = f"{self.data[index]}"
+        label_path = f"{self.labels[index]}"
+
+        image = Image.open(image_path)
+        label = Image.open(label_path)
+
+        if self.transforms:
+            image = self.transforms(image)
+            label = self.transforms(label)
+
+        return image, label
+
 
 
 def val(args, model, dataloader):
@@ -74,7 +131,7 @@ def train(args, model, optimizer, dataloader_train, dataloader_val):
     if args.loss == 'dice': #imposta la loss
         loss_func = DiceLoss()
     elif args.loss == 'crossentropy':
-        loss_func = torch.nn.CrossEntropyLoss(ingore_index =255)
+        loss_func = torch.nn.CrossEntropyLoss(ignore_index=255)
     
     max_miou = 0
     step = 0
@@ -82,7 +139,7 @@ def train(args, model, optimizer, dataloader_train, dataloader_val):
     for epoch in range(args.num_epochs):
         lr = poly_lr_scheduler(optimizer, args.learning_rate, iter = epoch, max_iter=args.num_epochs) #set the decay of the learning rate
         model.train()# set the model to into the train mode
-        tq = tqdm(total = len(dataloader_train)*args.batc_size) #progress bar
+        tq = tqdm(total = len(dataloader_train)*args.batch_size) #progress bar
         tq.set_description('epoch %d, lr %f' % (epoch, lr))
         loss_record = [] # array to store the value of the loss across the training
 
@@ -160,12 +217,15 @@ def main(params):
     args = parser.parse_args(params)
 
     # Create HERE datasets instance
-    # dataset_train =
-    # dataset_val =
+   
+    dataset_train = CustomDataset(args.data, "images", "labels", train=True)
+
+    dataset_val = CustomDataset(args.data, "images", "labels", train=False)
 
     # Define HERE your dataloaders:
-    # dataloader_train = ...
-    # dataloader_val = ...
+    dataloader_train = DataLoader(dataset_train, batch_size=args.batch_size, shuffle=True)
+    dataloader_val = DataLoader(dataset_val, batch_size=args.batch_size, shuffle=True)
+
 
     # build model
     os.environ['CUDA_VISIBLE_DEVICES'] = args.cuda
@@ -200,7 +260,7 @@ if __name__ == '__main__':
     params = [
         '--num_epochs', '1000',
         '--learning_rate', '2.5e-2',
-        '--data', './data/...',
+        '--data', './dataset/Cityscapes',
         '--num_workers', '8',
         '--num_classes', '19',
         '--cuda', '0',
