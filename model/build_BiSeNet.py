@@ -169,7 +169,7 @@ class BiSeNet(torch.nn.Module):
         cx2 = torch.mul(cx2, tail)
         
         # upsampling
-        cx1 = torch.nn.function.interpolate(cx1, size=sx.size()[-2:], mode='bilinear')
+        cx1 = torch.nn.functional.interpolate(cx1, size=sx.size()[-2:], mode='bilinear')
         cx2 = torch.nn.functional.interpolate(cx2, size=sx.size()[-2:], mode='bilinear')
         cx = torch.cat((cx1, cx2), dim=1)
 
