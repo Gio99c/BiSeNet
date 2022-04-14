@@ -1,5 +1,3 @@
-## EDOARDO
-# Implement train.py and try to separe to main part
 import sys
 sys.path.insert(1, "/Users/gio/Documents/GitHub/BiSeNet")
 
@@ -21,70 +19,10 @@ import torch.cuda.amp as amp
 from torchvision import datasets, transforms
 from PIL import Image
 from torchvision.datasets.vision import VisionDataset
+from data.Cityscapes.cityscapes import CustomDataset
 
 
 print("Import terminato")
-
-class CustomDataset(VisionDataset):
-    def __init__(self, root, data_folder, labels_folder, train=True, transforms=transforms.ToTensor()):
-        """
-        Inputs:
-            root: string, path of the root folder where images and labels are stored
-            data_folder: string, path of the images folder
-            labels_folder: string, path of the labels folder
-            train: boolean, if True prepare the train dataset, otherwise prepare the validation set
-
-        self.data = list containing the paths of the images 
-        self.labels = list contating the paths of the labels
-        """
-        super().__init__(root, transforms)
-        data_folder_path = Path(self.root) / data_folder        #absolute path of the folder containing the images
-        labels_folder_path = Path(self.root) / labels_folder    #absolute path of the folder containing the labels
-        
-
-        #Retrive the file names of the images and labels contained in the indicated folders
-        data_list = np.array(sorted(data_folder_path.glob("*")))
-        labels_list = np.array(sorted(labels_folder_path.glob("*")))
-
-        #Prepare lists of data and labels
-        if train:
-            train_samples = [l.split("/")[1] for l in np.loadtxt(f"{root}/train.txt", dtype="unicode")] #reading the file with the names of the training images
-            self.data = [img for img in data_list if str(img).split("/")[-1] in train_samples]
-            self.labels = []
-            for img in labels_list:
-              modified_label = str(img).split("/")[-1].replace("_gtFine_labelIds.png", "_leftImg8bit.png") #the replace operation is needed beacuse labels file have different names wrt the images
-              if modified_label in train_samples:
-                self.labels.append(str(img))
-        else:
-            val_samples = [l.split("/")[1] for l in np.loadtxt(f"{root}/val.txt", dtype="unicode")]     #reading the file with the names of the training images
-            self.data = [img for img in data_list if str(img).split("/")[-1] in val_samples]
-            self.labels = []
-            for img in labels_list:
-              modified_label = str(img).split("/")[-1].replace("_gtFine_labelIds.png", "_leftImg8bit.png")
-              if modified_label in val_samples:
-                self.labels.append(str(img))
-
-
-
-    def __len__(self):
-        """
-        Return the number of elements in the dataset
-        """
-        return len(self.data)
-
-    def __getitem__(self, index):
-        image_path = f"{self.data[index]}"
-        label_path = f"{self.labels[index]}"
-
-        image = Image.open(image_path)
-        label = Image.open(label_path)
-
-        if self.transforms:
-            image = self.transforms(image)
-            label = self.transforms(label)
-
-        return image, label
-
 
 
 def val(args, model, dataloader):
