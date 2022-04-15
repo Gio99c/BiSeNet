@@ -19,7 +19,7 @@ import torch.cuda.amp as amp
 from torchvision import datasets, transforms
 from PIL import Image
 from torchvision.datasets.vision import VisionDataset
-from data.Cityscapes.cityscapes import Cityscapes
+from data.Cityscapes.cityscapesv1 import Cityscapes
 
 
 print("Import terminato")
@@ -169,10 +169,10 @@ def main(params):
     args = parser.parse_args(params)
 
     # Create HERE datasets instance
-   
-    dataset_train = Cityscapes(args.data, "images", "labels", train=True)
+    composed = transforms.Compose([transforms.ToTensor(), transforms.RandomHorizontalFlip(p=0.5), transforms.RandomCrop((args.crop_height, args.crop_width), pad_if_needed=True)])
+    dataset_train = Cityscapes(args.data, "images", "labels", train=True, info_file="info.json", transforms=composed)
 
-    dataset_val = Cityscapes(args.data, "images", "labels", train=False)
+    dataset_val = Cityscapes(args.data, "images", "labels", train=False, info_file="info.json", transforms=composed)
 
     # Define HERE your dataloaders:
     dataloader_train = DataLoader(dataset_train, batch_size=args.batch_size, shuffle=True)
