@@ -1,6 +1,4 @@
 import sys
-
-from Cityscapes import CityScapes
 sys.path.insert(1, "/Users/gio/Documents/GitHub/BiSeNet")
 
 import argparse
@@ -21,7 +19,7 @@ import torch.cuda.amp as amp
 from torchvision import datasets, transforms
 from PIL import Image
 from torchvision.datasets.vision import VisionDataset
-from data.Cityscapes.cityscapes import CustomDataset
+from data.Cityscapes.cityscapes import Cityscapes
 
 
 print("Import terminato")
@@ -171,10 +169,10 @@ def main(params):
     args = parser.parse_args(params)
 
     # Create HERE datasets instance
-    
-    dataset_train = CityScapes(args.data, "images", "labels", 'train.txt', 'info.json', image_size=(512,1024), loss='crossentropy',train=True)
+   
+    dataset_train = Cityscapes(args.data, "images", "labels", train=True)
 
-    dataset_val = CityScapes(args.data, "images", "labels", 'val.txt', 'info.json', image_size=(512,1024), loss='crossentropy',train=True)
+    dataset_val = Cityscapes(args.data, "images", "labels", train=False)
 
     # Define HERE your dataloaders:
     dataloader_train = DataLoader(dataset_train, batch_size=args.batch_size, shuffle=True)
