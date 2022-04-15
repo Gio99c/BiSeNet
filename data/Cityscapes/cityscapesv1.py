@@ -30,7 +30,7 @@ class Map2:
         self.mapper = mapper
 
     def __call__(self, input):
-        return np.array([[self.mapper[element] for element in row]for row in input[0]], dtype=np.float32)
+        return np.array([[self.mapper[element] for element in row]for row in input], dtype=np.float32)
 
 class ToTensor:
     """
@@ -104,6 +104,7 @@ class Cityscapes(VisionDataset):
 
         image = np.array(Image.open(image_path), dtype=np.float32)
         label = np.array(Image.open(label_path), dtype=np.float32)
+
         
         image = MeanSubtraction(self.mean)(image)
         label = Map(self.mapper)(label)
@@ -117,9 +118,8 @@ class Cityscapes(VisionDataset):
         else:
             image = transforms.ToTensor()(image)
             label = transforms.ToTensor()(label)
-
         
-        return image, label
+        return image, label[0]
 
 def printImageLabel(image, label):
     info = json.load(open("/Users/gio/Documents/GitHub/BiSeNet/data/Cityscapes/info.json"))
