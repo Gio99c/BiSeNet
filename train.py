@@ -1,4 +1,6 @@
 import sys
+
+from Cityscapes import CityScapes
 sys.path.insert(1, "/Users/gio/Documents/GitHub/BiSeNet")
 
 import argparse
@@ -169,10 +171,10 @@ def main(params):
     args = parser.parse_args(params)
 
     # Create HERE datasets instance
-   
-    dataset_train = CustomDataset(args.data, "images", "labels", train=True)
+    
+    dataset_train = CityScapes(args.data, "images", "labels", 'train.txt', 'info.json', image_size=(512,1024), loss='crossentropy',train=True)
 
-    dataset_val = CustomDataset(args.data, "images", "labels", train=False)
+    dataset_val = CityScapes(args.data, "images", "labels", 'val.txt', 'info.json', image_size=(512,1024), loss='crossentropy',train=True)
 
     # Define HERE your dataloaders:
     dataloader_train = DataLoader(dataset_train, batch_size=args.batch_size, shuffle=True)

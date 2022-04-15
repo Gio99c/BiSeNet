@@ -53,7 +53,7 @@ def one_hot_it(label, label_info):
 	return semantic_map
 
 def one_hot_it_v11(label, label_info):
-	# return semantic_map -> [H, W, class_num]
+	# return semantic_map -> [H, W]
 	semantic_map = np.zeros(label.shape[:-1])
 	# from 0 to 11, and 11 means void
 	class_index = 0
@@ -258,3 +258,29 @@ def group_weight(weight_group, module, norm_layer, lr):
 	weight_group.append(dict(params=group_decay, lr=lr))
 	weight_group.append(dict(params=group_no_decay, weight_decay=.0, lr=lr))
 	return weight_group
+
+	
+
+
+
+def map_label(label, label_mappign_info):
+    # re-assign labels to match the format of Cityscapes
+    label_copy = 255 * np.ones(label.shape, dtype=np.float32)
+    for k, v in label_mappign_info.items():
+            label_copy[label == k] = v
+
+    return label_copy
+
+def one_hot(label):
+    # return semantic_map -> [H, W, class_num]
+    semantic_map = []
+    for class_index in range(20):
+        if class_index == 19:
+            class_index = 255
+        
+        mask = label==class_index
+        semantic_map.append(mask)
+    
+    semantic_map = np.stack(semantic_map, axis=-1).astype(np.float32)
+
+    return semantic_map
