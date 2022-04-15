@@ -163,8 +163,8 @@ class Cityscapes(Dataset):
 
         img = img.transpose([2,0,1])
 
-        img = torch.tensor(img, dtype=torch.uint8)
-        label = torch.tensor(label, dtype=torch.uint8)
+        img = torch.from_numpy(img)
+        label = torch.from_numpy(label)
 
         
 
