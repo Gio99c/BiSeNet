@@ -18,26 +18,46 @@ class Map:
         self.mapper = mapper
 
     def __call__(self, input):
-        return np.vectorize(self.mapper.__getitem__)(input)
+        return np.vectorize(self.mapper.__getitem__, otypes=[np.float32])(input)
+
+class Map2:
+    """
+    Maps every pixel to the respective object in the dictionary
+    Input:
+        mapper: dict, dictionary of the mapping
+    """
+    def __init__(self, mapper):
+        self.mapper = mapper
+
+    def __call__(self, input):
+        return np.array([[self.mapper[element] for element in row]for row in input[0]], dtype=np.float32)
 
 class ToTensor:
     """
     Convert into a tensor of float32: differently from transforms.ToTensor() this function does not normalize the values in [0,1] and does not swap the dimensions
     """
     def __call__(self, input):
-        return torch.as_tensor(input, dtype=torch.uint8)
+        return torch.as_tensor(input, dtype=torch.float32)
+
+
+class ToNumpy:
+    """
+    Convert into a tensor into a numpy array
+    """
+    def __call__(self, input):
+        return input.numpy()
 
 # Don't know if it will be useful or if we will subtract the mean inside the dataset class
 class MeanSubtraction:
     def __init__(self, mean):
-        self.mean = mean
+        self.mean = np.array(mean, dtype=np.float32)
 
     def __call__(self, input):
         return input - self.mean
 
 
 class CustomDataset(VisionDataset):
-    def __init__(self, root, list_path, image_folder, labels_folder, max_iters=None, info_file=None,  transforms=None):
+    def __init__(self, root, list_path, image_folder, labels_folder, max_iters=None, info_file=None,  transforms=transforms.ToTensor()):
         """
         Inputs:
             root: string, path of the root folder where images and labels are stored
@@ -55,6 +75,7 @@ class CustomDataset(VisionDataset):
         self.max_iters = max_iters                              # maximum number of iteration
         info = json.load(open(f"{root}/{info_file}"))           
         self.mapper = dict(info["label2train"])
+        self.mean = info["mean"]
         images_folder_path = Path(self.root) / image_folder     # absolute path of the folder containing the images
         labels_folder_path = Path(self.root) / labels_folder    # absolute path of the folder containing the labels
         
@@ -80,37 +101,40 @@ class CustomDataset(VisionDataset):
         image_path = self.images[index]
         label_path = self.labels[index]
 
-        image = np.array(Image.open(image_path))
-        label = np.array(Image.open(label_path))
-
+        image = np.array(Image.open(image_path), dtype=np.float32)
+        label = np.array(Image.open(label_path), dtype=np.float32)
+        
+        image = MeanSubtraction(self.mean)(image)
         label = Map(self.mapper)(label)
-
-        image = transforms.ToTensor()(image)
-        label = ToTensor()(label)
-
+        
         if self.transforms:
-            torch.manual_seed(np.random.randint(1000))
+            seed = np.random.randint(10000)
+            torch.manual_seed(seed)
             image = self.transforms(image)    # applies the transforms for the images
+            torch.manual_seed(seed)
             label = self.transforms(label)    # applies the transforms for the labels
+        else:
+            image = transforms.ToTensor()(image)
+            label = transforms.ToTensor()(label)
 
-
+        
         return image, label
 
+def printImageLabel(image, label):
+    info = json.load(open("/Users/gio/Documents/GitHub/BiSeNet/data/Cityscapes/info.json"))
+    mean = torch.as_tensor(info["mean"])
+    image = (image.permute(1, 2, 0) + mean).permute(2, 0, 1)
+    mapper = {i if i!=19 else 255:info["palette"][i] for i in range(20)}
+    fig, axs = plt.subplots(1,2, figsize=(10,5))
+    composed = torchvision.transforms.Compose([ToNumpy(), Map2(mapper), transforms.ToTensor(), transforms.ToPILImage()])
+    axs[0].imshow(transforms.ToPILImage()(image.to(torch.uint8)))
+    axs[1].imshow(composed(label))
+    plt.show()
 
 if __name__ == "__main__":
-    info = json.load(open("/Users/gio/Documents/GitHub/BiSeNet/data/Cityscapes/info.json"))
-    mapper = dict(info["label2train"])
     crop_width = 1024
     crop_height = 512
-    composed = torchvision.transforms.Compose([transforms.RandomHorizontalFlip(p=0.5), transforms.RandomCrop((crop_height, crop_width), pad_if_needed=True)])
+    composed = torchvision.transforms.Compose([transforms.ToTensor(), transforms.RandomHorizontalFlip(p=0.5), transforms.RandomCrop((crop_height, crop_width), pad_if_needed=True)])
     data = CustomDataset("./data/Cityscapes", "train.txt", "images/", "labels/", info_file="info.json", transforms=composed)
-    image, label = data[30]
-
-    fig, axs = plt.subplots(1,2, figsize=(10,5))
-    axs[0].imshow(image.permute(1,2,0))
-    axs[1].imshow(label.numpy().astype("uint8"))
-    plt.show()
-    
-
-    ## It works, but we should find a way to apply the transformation on both the image AND the respective label.
-    ## One possible solution could be https://stackoverflow.com/questions/65447992/pytorch-how-to-apply-the-same-random-transformation-to-multiple-image
+    image, label = data[0]
+    printImageLabel(image, label)

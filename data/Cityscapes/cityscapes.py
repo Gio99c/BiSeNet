@@ -21,7 +21,7 @@ import torchvision.transforms.functional as F
 
 class Cityscapes(Dataset):
     
-    def __init__(self, root, image_folder, label_folder, images_names_file, json_file, image_size, loss='crossentropy', train = True):
+    def __init__(self, root, image_folder, label_folder, images_names_file, json_file, image_size, train = True):
         """
         Parameters:
             root: root folder including image_folder, label_folder, txt files and json file
@@ -30,7 +30,6 @@ class Cityscapes(Dataset):
             images_names_file: name of the txt file containing the list of the names of the images 
             jsonf_file: name of the json file containg infor about label mapping
             image_size: tuple, indicates (H,W) of the images
-            loss: indicates the loss selected for the training, it usefull for the label encoding
             train: boolean, indicates if the dataset is prepared for the trainin phase or for the test phase
         Description:
             initialization of the parameters
@@ -67,20 +66,21 @@ class Cityscapes(Dataset):
 
 
         #Prepare the label mapping info
-        f = open(os.path.join(root, json_file))
-        info = json.load(f)
-        self.label_mapping_info = {el[0]:el[1] for el in info['label2train']}
-        self.mean = np.array(info['mean'])
-        f.close()
+        fp = open(f"{root}/{json_file}")
+        info = json.load(fp)
+        self.label_mapping_info = dict(info["label2train"])
+        self.mean = np.array(info['mean'], dtype=np.float32)
+        fp.close()
 
         self.image_size = image_size
         self.scale = [0.5, 1, 1.25, 1.5, 1.75, 2]  # as indicated in the paper
-        self.loss = loss
         self.train = train
+        """ Not used anymore
         self.to_tensor = transforms.Compose([
             transforms.Normalize((73.158359210711552,82.908917542625858,72.392398761941593), (47.675755341814678, 48.494214368814916, 47.736546325441594)),                                               #each image is transformed into a tensor and normalized
             transforms.ToTensor(),
         ])
+        """
 
     def __len__(self):
         """
@@ -193,8 +193,7 @@ if __name__ =='__main__':
     images_names_file = 'train.txt'
     json_file = 'info.json'
     image_size = (512,1024)
-    loss = 'dice'
-    dataset = Cityscapes(root, image_folder, label_folder, images_names_file, json_file, image_size, loss)
+    dataset = Cityscapes(root, image_folder, label_folder, images_names_file, json_file, image_size)
 
     img, label = dataset[1]
 
