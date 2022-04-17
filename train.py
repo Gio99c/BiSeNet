@@ -37,7 +37,6 @@ def val(args, model, dataloader):
         hist = np.zeros((args.num_classes, args.num_classes)) #create a square arrey with side num_classes
         for i, (data, label) in enumerate(tqdm(dataloader)): #get a batch of data and the respective label at each iteration
             label = label.type(torch.LongTensor) #set the type of the label to long
-            print(label)
             data = data.cuda()
             label = label.long().cuda()
 
