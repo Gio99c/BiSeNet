@@ -27,7 +27,7 @@ print("Import terminato")
 
 def val(args, model, dataloader):
 
-    print('start val')
+    print(f"{'#'*10} VALIDATION {'#' * 10}")
 
     # label_info = get_label_info(csv_path)
 
@@ -35,7 +35,7 @@ def val(args, model, dataloader):
         model.eval() #set the model in the evaluation mode
         precision_record = []
         hist = np.zeros((args.num_classes, args.num_classes)) #create a square arrey with side num_classes
-        for i, (data, label) in enumerate(dataloader): #get a batch of data and the respective label at each iteration
+        for i, (data, label) in enumerate(tqdm(dataloader)): #get a batch of data and the respective label at each iteration
             label = label.type(torch.LongTensor) #set the type of the label to long
             print(label)
             data = data.cuda()
@@ -117,27 +117,27 @@ def train(args, model, optimizer, dataloader_train, dataloader_val):
             loss_record.append(loss.item())
 
     
-    tq.close()
-    loss_train_mean = np.mean(loss_record)
-    writer.add_scalar('epoch/loss_epoch_train', float(loss_train_mean), epoch)
-    print('loss for train : %f' % (loss_train_mean))
-    if epoch % args.checkpoint_step == 0 and epoch != 0:
-        import os
-        if not os.path.isdir(args.save_model_path):
-            os.mkdir(args.save_model_path)
-        torch.save(model.module.state_dict(),
-                    os.path.join(args.save_model_path, 'latest_dice_loss.pth'))
-    
-    if epoch % args.validation_step == 0 and epoch != 0:
-            precision, miou = val(args, model, dataloader_val)
-            if miou > max_miou:
-                max_miou = miou
-                import os 
-                os.makedirs(args.save_model_path, exist_ok=True)
-                torch.save(model.module.state_dict(),
-                           os.path.join(args.save_model_path, 'best_dice_loss.pth'))
-            writer.add_scalar('epoch/precision_val', precision, epoch)
-            writer.add_scalar('epoch/miou val', miou, epoch)
+        tq.close()
+        loss_train_mean = np.mean(loss_record)
+        writer.add_scalar('epoch/loss_epoch_train', float(loss_train_mean), epoch)
+        print('loss for train : %f' % (loss_train_mean))
+        if epoch % args.checkpoint_step == 0 and epoch != 0:
+            import os
+            if not os.path.isdir(args.save_model_path):
+                os.mkdir(args.save_model_path)
+            torch.save(model.module.state_dict(),
+                        os.path.join(args.save_model_path, 'latest_dice_loss.pth'))
+        
+        if epoch % args.validation_step == 0 and epoch != 0:
+                precision, miou = val(args, model, dataloader_val)
+                if miou > max_miou:
+                    max_miou = miou
+                    import os 
+                    os.makedirs(args.save_model_path, exist_ok=True)
+                    torch.save(model.module.state_dict(),
+                            os.path.join(args.save_model_path, 'best_dice_loss.pth'))
+                writer.add_scalar('epoch/precision_val', precision, epoch)
+                writer.add_scalar('epoch/miou val', miou, epoch)
 
 
 def main(params):
@@ -145,7 +145,7 @@ def main(params):
 
     # basic parameters
     parser = argparse.ArgumentParser()
-    parser.add_argument('--num_epochs', type=int, default=300, help='Number of epochs to train for')
+    parser.add_argument('--num_epochs', type=int, default=50, help='Number of epochs to train for')
     parser.add_argument('--epoch_start_i', type=int, default=0, help='Start counting epochs from this number')
     parser.add_argument('--checkpoint_step', type=int, default=10, help='How often to save checkpoints (epochs)')
     parser.add_argument('--validation_step', type=int, default=10, help='How often to perform validation (epochs)')
@@ -176,7 +176,7 @@ def main(params):
 
     # Define HERE your dataloaders:
     dataloader_train = DataLoader(dataset_train, batch_size=args.batch_size, shuffle=True)
-    dataloader_val = DataLoader(dataset_val, batch_size=args.batch_size, shuffle=True)
+    dataloader_val = DataLoader(dataset_val, batch_size=1, shuffle=True)
 
 
     # build model
@@ -210,7 +210,7 @@ def main(params):
 
 if __name__ == '__main__':
     params = [
-        '--num_epochs', '1000',
+        '--num_epochs', '50',
         '--learning_rate', '2.5e-2',
         '--data', './data/Cityscapes',
         '--num_workers', '8',
