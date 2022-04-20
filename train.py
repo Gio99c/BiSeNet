@@ -37,8 +37,10 @@ def val(args, model, dataloader):
         hist = np.zeros((args.num_classes, args.num_classes)) #create a square arrey with side num_classes
         for i, (data, label) in enumerate(tqdm(dataloader)): #get a batch of data and the respective label at each iteration
             label = label.type(torch.LongTensor) #set the type of the label to long
-            data = data.cuda()
-            label = label.long().cuda()
+            label = label.long()
+            if torch.cuda.is_available() and args.use_gpu:
+                data = data.cuda()
+                label = label.long().cuda()
 
             #get RGB predict image
             predict = model(data).squeeze() #remove all the dimension equal to one => For example, if input is of shape: (A×1×B×C×1×D) then the out tensor will be of shape: (A×B×C×D)
@@ -73,7 +75,7 @@ def val(args, model, dataloader):
 
 
 def train(args, model, optimizer, dataloader_train, dataloader_val):
-    writer = SummaryWriter(comment=''.format(args.optimizer, args.context_path)) #Perchè optimizer e context path? Cos'è un SummaryWriter?
+    writer = SummaryWriter(args.tensorboard_logdir, comment=''.format(args.optimizer, args.context_path)) #Perchè optimizer e context path? Cos'è un SummaryWriter?
 
     scaler = amp.GradScaler() #Cos'è il GradScaler?
 
@@ -85,7 +87,7 @@ def train(args, model, optimizer, dataloader_train, dataloader_val):
     max_miou = 0
     step = 0
 
-    for epoch in range(args.num_epochs):
+    for epoch in range(args.epoch_start_i, args.num_epochs):
         lr = poly_lr_scheduler(optimizer, args.learning_rate, iter = epoch, max_iter=args.num_epochs) #set the decay of the learning rate
         model.train()# set the model to into the train mode
         tq = tqdm(total = len(dataloader_train)*args.batch_size) #progress bar
@@ -93,9 +95,11 @@ def train(args, model, optimizer, dataloader_train, dataloader_val):
         loss_record = [] # array to store the value of the loss across the training
 
         for i, (data, label) in enumerate(dataloader_train):
-
-            data = data.cuda()
-            label = label.long().cuda()
+            label = label.long()
+            if torch.cuda.is_available() and args.use_gpu:
+                data = data.cuda()
+                label = label.cuda()
+            
             optimizer.zero_grad()
 
             with amp.autocast():
@@ -145,9 +149,10 @@ def main(params):
     # basic parameters
     parser = argparse.ArgumentParser()
     parser.add_argument('--num_epochs', type=int, default=50, help='Number of epochs to train for')
+    parser.add_argument('--tensorboard_logdir', type=str, default='run', help='Directory for the tensorboard writer')
     parser.add_argument('--epoch_start_i', type=int, default=0, help='Start counting epochs from this number')
-    parser.add_argument('--checkpoint_step', type=int, default=10, help='How often to save checkpoints (epochs)')
-    parser.add_argument('--validation_step', type=int, default=10, help='How often to perform validation (epochs)')
+    parser.add_argument('--checkpoint_step', type=int, default=5, help='How often to save checkpoints (epochs)')
+    parser.add_argument('--validation_step', type=int, default=15, help='How often to perform validation (epochs)')
     parser.add_argument('--dataset', type=str, default="Cityscapes", help='Dataset you are using.')
     parser.add_argument('--crop_height', type=int, default=512, help='Height of cropped/resized input image to network')
     parser.add_argument('--crop_width', type=int, default=1024, help='Width of cropped/resized input image to network')
@@ -168,7 +173,7 @@ def main(params):
     args = parser.parse_args(params)
 
     # Create HERE datasets instance
-    composed = transforms.Compose([transforms.ToTensor(), transforms.RandomHorizontalFlip(p=0.5), transforms.RandomCrop((args.crop_height, args.crop_width), pad_if_needed=True)])
+    composed = transforms.Compose([transforms.ToTensor(), transforms.RandomHorizontalFlip(p=0.5), transforms.RandomAffine(0, scale=[0.75, 2.0]), transforms.RandomCrop((args.crop_height, args.crop_width), pad_if_needed=True)])
     dataset_train = Cityscapes(args.data, "images", "labels", train=True, info_file="info.json", transforms=composed)
 
     dataset_val = Cityscapes(args.data, "images", "labels", train=False, info_file="info.json", transforms=composed)
@@ -209,6 +214,9 @@ def main(params):
 
 if __name__ == '__main__':
     params = [
+        '--epoch_start_i', '0',
+        '--checkpoint_step', '5',
+        '--validation_step', '15',
         '--num_epochs', '50',
         '--learning_rate', '2.5e-2',
         '--data', './data/Cityscapes',

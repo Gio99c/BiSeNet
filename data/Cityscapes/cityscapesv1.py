@@ -1,3 +1,4 @@
+from turtle import color
 import torch
 import numpy as np
 from torchvision import transforms
@@ -135,7 +136,7 @@ def printImageLabel(image, label):
 if __name__ == "__main__":
     crop_width = 1024
     crop_height = 512
-    composed = torchvision.transforms.Compose([transforms.ToTensor(), transforms.RandomHorizontalFlip(p=0.5), transforms.RandomCrop((crop_height, crop_width), pad_if_needed=True)])
+    composed = torchvision.transforms.Compose([transforms.ToTensor(), transforms.RandomHorizontalFlip(p=0.5), transforms.RandomAffine(0, scale=[0.75, 2.0]), transforms.RandomCrop((crop_height, crop_width), pad_if_needed=True), transforms.GaussianBlur(kernel_size=3)])
     data = Cityscapes("./data/Cityscapes", "images/", "labels/", train=True, info_file="info.json", transforms=composed)
-    image, label = data[0]
+    image, label = data[5]
     printImageLabel(image, label)
