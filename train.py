@@ -40,7 +40,7 @@ def val(args, model, dataloader):
             label = label.long()
             if torch.cuda.is_available() and args.use_gpu:
                 data = data.cuda()
-                label = label.long().cuda()
+                label = label.cuda()
 
             #get RGB predict image
             predict = model(data).squeeze() #remove all the dimension equal to one => For example, if input is of shape: (A×1×B×C×1×D) then the out tensor will be of shape: (A×B×C×D)
@@ -172,6 +172,8 @@ def main(params):
 
     args = parser.parse_args(params)
 
+    writer = SummaryWriter(args.tensorboard_logdir, comment=''.format(args.optimizer, args.context_path))
+
     # Create HERE datasets instance
     composed = transforms.Compose([transforms.ToTensor(), transforms.RandomHorizontalFlip(p=0.5), transforms.RandomAffine(0, scale=[0.75, 2.0]), transforms.RandomCrop((args.crop_height, args.crop_width), pad_if_needed=True)])
     dataset_train = Cityscapes(args.data, "images", "labels", train=True, info_file="info.json", transforms=composed)
@@ -209,7 +211,11 @@ def main(params):
     # train
     train(args, model, optimizer, dataloader_train, dataloader_val)
     # final test
-    val(args, model, dataloader_val)
+    precision, miou = val(args, model, dataloader_val)
+
+    writer.add_scalar('epoch/precision_val', precision, args.num_epoch)
+    writer.add_scalar('epoch/miou val', miou, args.num_epoch)
+    
 
 
 if __name__ == '__main__':
