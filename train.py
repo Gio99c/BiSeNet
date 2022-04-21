@@ -74,8 +74,10 @@ def val(args, model, dataloader):
     return precision, miou
 
 
-def train(args, model, optimizer, dataloader_train, dataloader_val, writer=SummaryWriter()):
+def train(args, model, optimizer, dataloader_train, dataloader_val):
     scaler = amp.GradScaler() #Cos'è il GradScaler?
+
+    writer = SummaryWriter(args.tensorboard_logdir, comment=''.format(args.optimizer, args.context_path))
 
     if args.loss == 'dice': #imposta la loss
         loss_func = DiceLoss()
@@ -114,15 +116,13 @@ def train(args, model, optimizer, dataloader_train, dataloader_val, writer=Summa
             tq.update(args.batch_size)
             tq.set_postfix(loss='%.6f' % loss)
             step += 1
-            if writer:
-                writer.add_scalar('loss_step', loss, step)
+            writer.add_scalar('loss_step', loss, step)
             loss_record.append(loss.item())
 
     
         tq.close()
         loss_train_mean = np.mean(loss_record)
-        if writer:
-            writer.add_scalar('epoch/loss_epoch_train', float(loss_train_mean), epoch)
+        writer.add_scalar('epoch/loss_epoch_train', float(loss_train_mean), epoch)
         print('loss for train : %f' % (loss_train_mean))
         if epoch % args.checkpoint_step == 0 and epoch != 0:
             import os
@@ -139,9 +139,8 @@ def train(args, model, optimizer, dataloader_train, dataloader_val, writer=Summa
                     os.makedirs(args.save_model_path, exist_ok=True)
                     torch.save(model.module.state_dict(),
                             os.path.join(args.save_model_path, 'best_dice_loss.pth'))
-                if writer:
-                    writer.add_scalar('epoch/precision_val', precision, epoch)
-                    writer.add_scalar('epoch/miou val', miou, epoch)
+                writer.add_scalar('epoch/precision_val', precision, epoch)
+                writer.add_scalar('epoch/miou val', miou, epoch)
 
 
 def main(params):
@@ -209,15 +208,10 @@ def main(params):
         print('Done!')
 
 
-    writer = SummaryWriter(args.tensorboard_logdir, comment=''.format(args.optimizer, args.context_path))
-
     # train
-    train(args, model, optimizer, dataloader_train, dataloader_val, writer)
+    train(args, model, optimizer, dataloader_train, dataloader_val)
     # final test
-    precision, miou = val(args, model, dataloader_val)
-
-    writer.add_scalar('epoch/precision_val', precision, args.num_epoch)
-    writer.add_scalar('epoch/miou val', miou, args.num_epoch)
+    val(args, model, dataloader_val)
     
 
 
