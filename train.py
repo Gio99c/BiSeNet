@@ -74,9 +74,7 @@ def val(args, model, dataloader):
     return precision, miou
 
 
-def train(args, model, optimizer, dataloader_train, dataloader_val):
-    writer = SummaryWriter(args.tensorboard_logdir, comment=''.format(args.optimizer, args.context_path)) #Perchè optimizer e context path? Cos'è un SummaryWriter?
-
+def train(args, model, optimizer, dataloader_train, dataloader_val, writer=SummaryWriter()):
     scaler = amp.GradScaler() #Cos'è il GradScaler?
 
     if args.loss == 'dice': #imposta la loss
@@ -116,13 +114,15 @@ def train(args, model, optimizer, dataloader_train, dataloader_val):
             tq.update(args.batch_size)
             tq.set_postfix(loss='%.6f' % loss)
             step += 1
-            writer.add_scalar('loss_step', loss, step)
+            if writer:
+                writer.add_scalar('loss_step', loss, step)
             loss_record.append(loss.item())
 
     
         tq.close()
         loss_train_mean = np.mean(loss_record)
-        writer.add_scalar('epoch/loss_epoch_train', float(loss_train_mean), epoch)
+        if writer:
+            writer.add_scalar('epoch/loss_epoch_train', float(loss_train_mean), epoch)
         print('loss for train : %f' % (loss_train_mean))
         if epoch % args.checkpoint_step == 0 and epoch != 0:
             import os
@@ -139,8 +139,9 @@ def train(args, model, optimizer, dataloader_train, dataloader_val):
                     os.makedirs(args.save_model_path, exist_ok=True)
                     torch.save(model.module.state_dict(),
                             os.path.join(args.save_model_path, 'best_dice_loss.pth'))
-                writer.add_scalar('epoch/precision_val', precision, epoch)
-                writer.add_scalar('epoch/miou val', miou, epoch)
+                if writer:
+                    writer.add_scalar('epoch/precision_val', precision, epoch)
+                    writer.add_scalar('epoch/miou val', miou, epoch)
 
 
 def main(params):
@@ -172,7 +173,6 @@ def main(params):
 
     args = parser.parse_args(params)
 
-    writer = SummaryWriter(args.tensorboard_logdir, comment=''.format(args.optimizer, args.context_path))
 
     # Create HERE datasets instance
     composed = transforms.Compose([transforms.ToTensor(), transforms.RandomHorizontalFlip(p=0.5), transforms.RandomAffine(0, scale=[0.75, 2.0]), transforms.RandomCrop((args.crop_height, args.crop_width), pad_if_needed=True)])
@@ -208,8 +208,11 @@ def main(params):
         model.module.load_state_dict(torch.load(args.pretrained_model_path))
         print('Done!')
 
+
+    writer = SummaryWriter(args.tensorboard_logdir, comment=''.format(args.optimizer, args.context_path))
+
     # train
-    train(args, model, optimizer, dataloader_train, dataloader_val)
+    train(args, model, optimizer, dataloader_train, dataloader_val, writer)
     # final test
     precision, miou = val(args, model, dataloader_val)
 
