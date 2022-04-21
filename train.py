@@ -120,27 +120,27 @@ def train(args, model, optimizer, dataloader_train, dataloader_val):
             loss_record.append(loss.item())
 
     
-        tq.close()
-        loss_train_mean = np.mean(loss_record)
-        writer.add_scalar('epoch/loss_epoch_train', float(loss_train_mean), epoch)
-        print('loss for train : %f' % (loss_train_mean))
-        if epoch % args.checkpoint_step == 0 and epoch != 0:
-            import os
-            if not os.path.isdir(args.save_model_path):
-                os.mkdir(args.save_model_path)
-            torch.save(model.module.state_dict(),
-                        os.path.join(args.save_model_path, 'latest_dice_loss.pth'))
-        
-        if epoch % args.validation_step == 0 and epoch != 0:
-                precision, miou = val(args, model, dataloader_val)
-                if miou > max_miou:
-                    max_miou = miou
-                    import os 
-                    os.makedirs(args.save_model_path, exist_ok=True)
-                    torch.save(model.module.state_dict(),
-                            os.path.join(args.save_model_path, 'best_dice_loss.pth'))
-                writer.add_scalar('epoch/precision_val', precision, epoch)
-                writer.add_scalar('epoch/miou val', miou, epoch)
+            tq.close()
+            loss_train_mean = np.mean(loss_record)
+            writer.add_scalar('epoch/loss_epoch_train', float(loss_train_mean), epoch)
+            print('loss for train : %f' % (loss_train_mean))
+            if epoch % args.checkpoint_step == 0 and epoch != 0:
+                import os
+                if not os.path.isdir(args.save_model_path):
+                    os.mkdir(args.save_model_path)
+                torch.save(model.module.state_dict(),
+                            os.path.join(args.save_model_path, 'latest_dice_loss.pth'))
+            
+            if epoch % args.validation_step == 0 and epoch != 0:
+                    precision, miou = val(args, model, dataloader_val)
+                    if miou > max_miou:
+                        max_miou = miou
+                        import os 
+                        os.makedirs(args.save_model_path, exist_ok=True)
+                        torch.save(model.module.state_dict(),
+                                os.path.join(args.save_model_path, 'best_dice_loss.pth'))
+                    writer.add_scalar('epoch/precision_val', precision, epoch)
+                    writer.add_scalar('epoch/miou val', miou, epoch)
 
 
 def main(params):
