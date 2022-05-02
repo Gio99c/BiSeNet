@@ -1,213 +1,142 @@
-from unicodedata import name
+from turtle import color
 import torch
-import glob
-import os
-from torchvision import transforms
-import cv2
-from PIL import Image
-import pandas as pd
 import numpy as np
-from imgaug import augmenters as iaa
-import imgaug as ia
-from utils import get_label_info, one_hot_it, RandomCrop, reverse_one_hot, one_hot_it_v11, one_hot_it_v11_dice, map_label, one_hot
-import random
-import matplotlib.pyplot as plt 
+from torchvision import transforms
+from PIL import Image
 from torchvision.datasets.vision import VisionDataset
-from torch.utils.data import Dataset
 from pathlib import Path
+import matplotlib.pyplot as plt
+import torchvision
 import json
-import torchvision.transforms.functional as F
+
+class Map:
+    """
+    Maps every pixel to the respective object in the dictionary
+    Input:
+        mapper: dict, dictionary of the mapping
+    """
+    def __init__(self, mapper):
+        self.mapper = mapper
+
+    def __call__(self, input):
+        return np.vectorize(self.mapper.__getitem__, otypes=[np.float32])(input)
+
+class Map2:
+    """
+    Maps every pixel to the respective object in the dictionary
+    Input:
+        mapper: dict, dictionary of the mapping
+    """
+    def __init__(self, mapper):
+        self.mapper = mapper
+
+    def __call__(self, input):
+        return np.array([[self.mapper[element] for element in row]for row in input], dtype=np.float32)
+
+class ToTensor:
+    """
+    Convert into a tensor of float32: differently from transforms.ToTensor() this function does not normalize the values in [0,1] and does not swap the dimensions
+    """
+    def __call__(self, input):
+        return torch.as_tensor(input, dtype=torch.float32)
 
 
-class Cityscapes(Dataset):
-    
-    def __init__(self, root, image_folder, label_folder, images_names_file, json_file, image_size, train = True):
+class ToNumpy:
+    """
+    Convert into a tensor into a numpy array
+    """
+    def __call__(self, input):
+        return input.numpy()
+
+# Don't know if it will be useful or if we will subtract the mean inside the dataset class
+class MeanSubtraction:
+    def __init__(self, mean):
+        self.mean = np.array(mean, dtype=np.float32)
+
+    def __call__(self, input):
+        return input - self.mean
+
+
+class Cityscapes(VisionDataset):
+    def __init__(self, root, image_folder, labels_folder, train=True, info_file=None, transforms=transforms.ToTensor()):
         """
-        Parameters:
-            root: root folder including image_folder, label_folder, txt files and json file
-            image_folder: name of the folder containing the images
-            label_folder: name of the fodler containing the labels
-            images_names_file: name of the txt file containing the list of the names of the images 
-            jsonf_file: name of the json file containg infor about label mapping
-            image_size: tuple, indicates (H,W) of the images
-            train: boolean, indicates if the dataset is prepared for the trainin phase or for the test phase
-        Description:
-            initialization of the parameters
+        Inputs:
+            root: string, path of the root folder where images and labels are stored
+            list_path: string, path of the file used to split the dataset (train.txt/val.txt)
+            image_folder: string, path of the images folder
+            labels_folder: string, path of the labels folder
+            transform: transformation to be applied on the images
+            target_transform: transformation to be applied on the labels
+
+        self.images = list containing the paths of the images 
+        self.labels = list contating the paths of the labels
         """
-        super().__init__()
-        self.root = root
+        super().__init__(root, transforms)
+
+        self.list_path = "train.txt" if train else "val.txt"                              # path to train.txt/val.txt
+        info = json.load(open(f"{root}/{info_file}")) 
+        self.train = train          
+        self.mapper = dict(info["label2train"])
+        self.mean = info["mean"]
+        images_folder_path = Path(self.root) / image_folder     # absolute path of the folder containing the images
+        labels_folder_path = Path(self.root) / labels_folder    # absolute path of the folder containing the labels
         
+
+        #Retrive the file names of the images and labels contained in the indicated folders
+        image_name_list = np.array(sorted(images_folder_path.glob("*")))
+        labels_list = np.array(sorted(labels_folder_path.glob("*")))
+
+        #Prepare lists of data and labels
+        name_samples = [l.split("/")[1] for l in np.loadtxt(f"{root}/{self.list_path}", dtype="unicode")] # creates the list of the images names for the train/validation according to list_path
+        self.images = [img for img in image_name_list if str(img).split("/")[-1] in name_samples]    # creates the list of images names filtered according to name_samples
+        self.labels = [img for img in labels_list if str(img).split("/")[-1].replace("_gtFine_labelIds.png", "_leftImg8bit.png") in name_samples]  # creates the list of label image names filtered according to name_samples
         
-        #Prepare the images
-        images_folder_path = os.path.join(root, image_folder)
-        images_path_list = [path for path in sorted(Path(images_folder_path).glob("*"))] #all the images contained in the image_folder
 
-        images_names_file_path = os.path.join(root, images_names_file)
-        images_names_list = [name.split("/")[1] for name in np.loadtxt(images_names_file_path, dtype="unicode")] #all the images name that have to be selected for the dataset
-
-        self.images_list = [img for img in images_path_list if str(img).split("/")[-1] in images_names_list]
-        
-        #Prepare the labels
-        labels_folder_path = os.path.join(root, label_folder)
-        labels_path_list = [path for path in sorted(Path(labels_folder_path).glob("*"))]
-
-        self.labels_list = [name for name in labels_path_list if str(name).split("/")[-1].replace("_gtFine_labelIds.png", "_leftImg8bit.png") in images_names_list]
-
-        """
-        print(len(self.images_list))
-        print(len(self.labels_list))
-        print(self.labels_list[0])
-
-        label = Image.open(self.labels_list[0])
-        label = np.array(label)
-        #print(np.unique(label))
-        """
-
-
-
-        #Prepare the label mapping info
-        fp = open(f"{root}/{json_file}")
-        info = json.load(fp)
-        self.label_mapping_info = dict(info["label2train"])
-        self.mean = np.array(info['mean'], dtype=np.float32)
-        fp.close()
-
-        self.image_size = image_size
-        self.scale = [0.5, 1, 1.25, 1.5, 1.75, 2]  # as indicated in the paper
-        self.train = train
-        """ Not used anymore
-        self.to_tensor = transforms.Compose([
-            transforms.Normalize((73.158359210711552,82.908917542625858,72.392398761941593), (47.675755341814678, 48.494214368814916, 47.736546325441594)),                                               #each image is transformed into a tensor and normalized
-            transforms.ToTensor(),
-        ])
-        """
 
     def __len__(self):
         """
-        Description:
-            return the number of images inside the dataset
+        Return the number of elements in the dataset
         """
-        return len(self.images_list)
-    
+        return len(self.images)
+
     def __getitem__(self, index):
-        
-        seed = random.random() #seed for random cropping
+        image_path = self.images[index]
+        label_path = self.labels[index]
 
-        scale = random.choice(self.scale)
-        scale = (int(self.image_size[0] * scale), int(self.image_size[1] * scale))
-        #print("scale factor: ", scale)
-        
-        img = Image.open(self.images_list[index])
-
+        image = np.array(Image.open(image_path), dtype=np.float32)
+        label = np.array(Image.open(label_path), dtype=np.float32)
 
         
-        # randomly resize image and random crop
-        # =====================================
-        if self.train:
-            img = transforms.Resize(scale, F.InterpolationMode.BILINEAR)(img)         #rescale the image
-            #print("Images's dimension after resize: ", img.size)
-            #img.show()
-            img = RandomCrop(self.image_size, seed, pad_if_needed=True)(img)          #take a piece of the image => this is the returned image
-            #print(f"Image's dimension after the crop transformation: {img.size}")
-            #img.show()       
-        # =====================================
+        image = MeanSubtraction(self.mean)(image)
+        label = Map(self.mapper)(label)
         
-
-        label = Image.open(self.labels_list[index])
-        label = Image.fromarray(map_label(np.array(label), self.label_mapping_info))
-
+        if self.transforms and self.train:
+            seed = np.random.randint(10000)
+            torch.manual_seed(seed)
+            image = self.transforms(image)    # applies the transforms for the images
+            torch.manual_seed(seed)
+            label = self.transforms(label)    # applies the transforms for the labels
+        else:
+            image = transforms.ToTensor()(image)
+            label = transforms.ToTensor()(label)
         
-        # randomly resize label and random crop
-        # =====================================
-        if self.train:
-            label = transforms.Resize(scale, F.InterpolationMode.NEAREST)(label)        #same steps of the image
-            #print(f"Label's dimension after the resize: {label.size}")
-            #label.show()
-            label = RandomCrop(self.image_size, seed, pad_if_needed=True)(label)        #the seed guarantees that the two portions are the same 
-            #print(f"Label's dimension after cropping: {label.size}")
-            #label.show()
-        # ===================================== 
-        
+        return image, label[0]
 
-        img = np.array(img, dtype = np.float32)
-        img -= self.mean
+def printImageLabel(image, label):
+    info = json.load(open("/Users/gio/Documents/GitHub/BiSeNet/data/Cityscapes/info.json"))
+    mean = torch.as_tensor(info["mean"])
+    image = (image.permute(1, 2, 0) + mean).permute(2, 0, 1)
+    mapper = {i if i!=19 else 255:info["palette"][i] for i in range(20)}
+    fig, axs = plt.subplots(1,2, figsize=(10,5))
+    composed = torchvision.transforms.Compose([ToNumpy(), Map2(mapper), transforms.ToTensor(), transforms.ToPILImage()])
+    axs[0].imshow(transforms.ToPILImage()(image.to(torch.uint8)))
+    axs[1].imshow(composed(label))
+    plt.show()
 
-        label = np.array(label, dtype = np.float32)
-        
-        """ decommentare se si vuole inserire la possibilità di flippare l'immagine
-        if self.train:
-            seq_det = self.fliplr.to_deterministic() 
-
-            img = seq_det.augment_image(img)
-            print(f"Image dimension after the flip: {img.shape}")
-            label = seq_det.augment_image(label)
-            print(f"Label dimension after the flip: {label.shape}")
-        """
-
-        # image: from [H, W, C] -> [C, H, W]
-        """ print(img.shape)
-        img -= self.mean
-        print(img.shape)
-        img = Image.fromarray(img)
-        #img = transforms.ToTensor()(img)
-        img = torch.tensor(img) """
-
-        
-        """  img = Image.fromarray(img)
-        img = self.to_tensor(img).float()
-
-        print(np.unique(img))
-        
-        label = torch.from_numpy(label).long()
-        print(np.unique(label)) """
-
-        img = img.transpose([2,0,1])
-
-        img = torch.from_numpy(img)
-        label = torch.from_numpy(label)
-
-        
-
-        return img, label
-
-
-
-        
-
-
-            
-
-
-
-
-    
-
-
-
-
-
-if __name__ =='__main__':
-    root = 'data/Cityscapes'
-    image_folder = 'images'
-    label_folder = 'labels'
-    images_names_file = 'train.txt'
-    json_file = 'info.json'
-    image_size = (512,1024)
-    dataset = Cityscapes(root, image_folder, label_folder, images_names_file, json_file, image_size)
-
-    img, label = dataset[1]
-
-    print(img.size())
-    print(type(label))
-
-    image = transforms.ToPILImage()(img)
-    image.show()
-
-    label = transforms.ToPILImage()(label)
-    label.show()
-
-
-
-
-
-
+if __name__ == "__main__":
+    crop_width = 1024
+    crop_height = 512
+    composed = torchvision.transforms.Compose([transforms.ToTensor(), transforms.RandomHorizontalFlip(p=0.5), transforms.RandomAffine(0, scale=[0.75, 2.0]), transforms.RandomCrop((crop_height, crop_width), pad_if_needed=True), transforms.GaussianBlur(kernel_size=3)])
+    data = Cityscapes("./data/Cityscapes", "images/", "labels/", train=True, info_file="info.json", transforms=composed)
+    image, label = data[5]
+    printImageLabel(image, label)

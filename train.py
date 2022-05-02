@@ -19,7 +19,7 @@ import torch.cuda.amp as amp
 from torchvision import datasets, transforms
 from PIL import Image
 from torchvision.datasets.vision import VisionDataset
-from data.Cityscapes.cityscapesv1 import Cityscapes
+from data.Cityscapes.cityscapes import Cityscapes
 
 
 print("Import terminato")
