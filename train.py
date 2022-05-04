@@ -180,8 +180,8 @@ def main(params):
     dataset_val = Cityscapes(args.data, "images", "labels", train=False, info_file="info.json", transforms=composed)
 
     # Define HERE your dataloaders:
-    dataloader_train = DataLoader(dataset_train, batch_size=args.batch_size, shuffle=True)
-    dataloader_val = DataLoader(dataset_val, batch_size=1, shuffle=True)
+    dataloader_train = DataLoader(dataset_train, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
+    dataloader_val = DataLoader(dataset_val, batch_size=1, shuffle=True, num_workers=args.num_workers)
 
 
     # build model
@@ -219,7 +219,7 @@ if __name__ == '__main__':
     params = [
         '--epoch_start_i', '0',
         '--checkpoint_step', '5',
-        '--validation_step', '15',
+        '--validation_step', '7',
         '--num_epochs', '50',
         '--learning_rate', '2.5e-2',
         '--data', './data/Cityscapes',
@@ -228,6 +228,7 @@ if __name__ == '__main__':
         '--cuda', '0',
         '--batch_size', '8',
         '--save_model_path', './checkpoints_101_sgd',
+        '--tensorboard_logdir', './runs/',
         '--context_path', 'resnet101',  # set resnet18 or resnet101, only support resnet18 and resnet101
         '--optimizer', 'sgd',
 
