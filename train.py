@@ -13,7 +13,7 @@ from tensorboardX import SummaryWriter
 from tqdm import tqdm
 import numpy as np
 from utils import poly_lr_scheduler
-from utils import reverse_one_hot, compute_global_accuracy, fast_hist, per_class_iu
+from utils import reverse_one_hot, compute_global_accuracy, fast_hist, per_class_iu, save_images,  get_index
 from loss import DiceLoss, flatten
 import torch.cuda.amp as amp
 from torchvision import datasets, transforms
@@ -21,20 +21,33 @@ from PIL import Image
 from torchvision.datasets.vision import VisionDataset
 from data.Cityscapes.cityscapes import Cityscapes
 
+import json
+SAVE_IMAGES = True
+SAVE_IMAGES_STEP = 10
+
 
 print("Import terminato")
 
 
-def val(args, model, dataloader):
+def val(args, model, dataloader, validation_run):
 
     print(f"{'#'*10} VALIDATION {'#' * 10}")
 
     # label_info = get_label_info(csv_path)
 
+    info = json.load(open(args.data_target+"/"+args.info_file))
+    palette = {i if i!=19 else 255:info["palette"][i] for i in range(20)}
+    mean = torch.as_tensor(info["mean"])
+
     with torch.no_grad():
         model.eval() #set the model in the evaluation mode
         precision_record = []
         hist = np.zeros((args.num_classes, args.num_classes)) #create a square arrey with side num_classes
+
+
+        if torch.cuda.is_available() and args.use_gpu:
+            mean = mean.cuda() 
+
         for i, (data, label) in enumerate(tqdm(dataloader)): #get a batch of data and the respective label at each iteration
             label = label.type(torch.LongTensor) #set the type of the label to long
             label = label.long()
@@ -56,6 +69,15 @@ def val(args, model, dataloader):
             #compute per pixel accuracy
             precision = compute_global_accuracy(predict, label) #accuracy of the prediction
             hist += fast_hist(label.flatten(), predict.flatten(), args.num_classes) #cosa fa ? // Sono invertiti gli argomenti?
+
+            path_to_save= args.save_model_path+f"/val_results/{validation_run}" #TODO os.join
+
+            #Save the image
+            if args.save_images and i % args.save_images_step == 0 : 
+                index_image = get_index(int(i/args.save_images_step))
+                os.makedirs(path_to_save, exist_ok=True)
+                save_images(mean, palette, data, predict, label, 
+                path_to_save+"/"+index_image+".png") #TODO crea il path con os.join
             
             # there is no need to transform the one-hot array to visual RGB array
             # predict = colour_code_segmentation(np.array(predict), label_info)
@@ -169,6 +191,8 @@ def main(params):
     parser.add_argument('--save_model_path', type=str, default=None, help='path to save model')
     parser.add_argument('--optimizer', type=str, default='rmsprop', help='optimizer, support rmsprop, sgd, adam')
     parser.add_argument('--loss', type=str, default='crossentropy', help='loss function, dice or crossentropy')
+    parser.add_argument('--save_images', type=bool, default=SAVE_IMAGES, help='Indicate if it is necessary saving examples during validation')
+    parser.add_argument('--save_images_step', type=bool, default=SAVE_IMAGES_STEP, help='How often save an image during validation')
 
     args = parser.parse_args(params)
 
@@ -211,7 +235,7 @@ def main(params):
     # train
     train(args, model, optimizer, dataloader_train, dataloader_val)
     # final test
-    val(args, model, dataloader_val)
+    val(args, model, dataloader_val, validation_run="final")
     
 
 

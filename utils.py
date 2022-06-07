@@ -1,5 +1,7 @@
 ## SEBASTIANO
 # Implement utils.py
+import json
+import os
 import torch.nn as nn
 import torch
 from torch.nn import functional as F
@@ -9,6 +11,63 @@ import pandas as pd
 import random
 import numbers
 import torchvision
+from torchvision import transforms
+from torchvision.utils import save_image
+from tqdm import tqdm
+from fvcore.nn import FlopCountAnalysis
+from fvcore.nn.parameter_count import parameter_count
+import matplotlib.pyplot as plt
+
+class ToNumpy:
+    """
+    Convert into a tensor into a numpy array
+    """
+    def __call__(self, input):
+        return input.numpy()
+
+class Map2:
+    """
+    Maps every pixel to the respective object in the dictionary
+    Input:
+        mapper: dict, dictionary of the mapping
+    """
+    def __init__(self, mapper):
+        self.mapper = mapper
+
+    def __call__(self, input):
+        return np.array([[self.mapper[element] for element in row]for row in input], dtype=np.float32)
+
+def colorLabel(label, palette):
+    composed = torchvision.transforms.Compose([ToNumpy(), Map2(palette), transforms.ToTensor(), transforms.ToPILImage()])
+    label = composed(label)
+    return label
+
+def save_images(mean, palette, image, predict, label, path_to_save):
+    #Save an output examples
+    #image
+    # image = image[0].clone().detach()
+    # image = (image.permute(1, 2, 0) + mean).permute(2, 0, 1)
+    # image = transforms.ToPILImage()(image.to(torch.uint8))
+
+    #prediction
+    predict = torch.tensor(predict.copy(), dtype=torch.uint8)
+    predict = colorLabel(predict, palette) 
+
+    # #label from np to Pil Image
+    # label = torch.tensor(label.copy(), dtype=torch.uint8)
+    # label = colorLabel(label, palette)
+
+    #create the figure
+    predict.save(path_to_save)
+
+    #save the final result
+    # plt.savefig(path_to_save) 
+
+def get_index(i):
+    """
+    Create the index to save the example
+    """
+    return "0"*(3-len(str(i)))+str(i)
 
 def poly_lr_scheduler(optimizer, init_lr, iter, lr_decay_iter=1, max_iter=300, power=0.9):
 	"""Polynomial decay of learning rate
