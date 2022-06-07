@@ -35,7 +35,7 @@ def val(args, model, dataloader, validation_run):
 
     # label_info = get_label_info(csv_path)
 
-    info = json.load(open(args.data_target+"/"+args.info_file))
+    info = json.load(open(args.data+"/info.json"))
     palette = {i if i!=19 else 255:info["palette"][i] for i in range(20)}
     mean = torch.as_tensor(info["mean"])
 
@@ -70,7 +70,7 @@ def val(args, model, dataloader, validation_run):
             precision = compute_global_accuracy(predict, label) #accuracy of the prediction
             hist += fast_hist(label.flatten(), predict.flatten(), args.num_classes) #cosa fa ? // Sono invertiti gli argomenti?
 
-            path_to_save= args.save_model_path+f"/val_results/{validation_run}" #TODO os.join
+            path_to_save= args.save_model_path+f"BiSeNet/val_results/{validation_run}" #TODO os.join
 
             #Save the image
             if args.save_images and i % args.save_images_step == 0 : 
@@ -251,7 +251,7 @@ if __name__ == '__main__':
         '--num_classes', '19',
         '--cuda', '0',
         '--batch_size', '8',
-        '--save_model_path', './checkpoints_101_sgd',
+        '--save_model_path', '/content/drive/MyDrive/MLDL_Project/PriorNet/models/',
         '--tensorboard_logdir', './runs/',
         '--context_path', 'resnet101',  # set resnet18 or resnet101, only support resnet18 and resnet101
         '--optimizer', 'sgd',
