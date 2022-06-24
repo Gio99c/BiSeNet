@@ -42,26 +42,15 @@ def colorLabel(label, palette):
     label = composed(label)
     return label
 
-def save_images(mean, palette, image, predict, label, path_to_save):
-    #Save an output examples
-    #image
-    # image = image[0].clone().detach()
-    # image = (image.permute(1, 2, 0) + mean).permute(2, 0, 1)
-    # image = transforms.ToPILImage()(image.to(torch.uint8))
-
+def save_images(mean,palette,predict,path_to_save):
     #prediction
     predict = torch.tensor(predict.copy(), dtype=torch.uint8)
     predict = colorLabel(predict, palette) 
 
-    # #label from np to Pil Image
-    # label = torch.tensor(label.copy(), dtype=torch.uint8)
-    # label = colorLabel(label, palette)
-
     #create the figure
     predict.save(path_to_save)
 
-    #save the final result
-    # plt.savefig(path_to_save) 
+
 
 def get_index(i):
     """

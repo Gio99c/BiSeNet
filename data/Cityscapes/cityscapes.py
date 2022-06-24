@@ -59,21 +59,10 @@ class MeanSubtraction:
 
 class Cityscapes(VisionDataset):
     def __init__(self, root, image_folder, labels_folder, train=True, info_file=None, transforms=transforms.ToTensor()):
-        """
-        Inputs:
-            root: string, path of the root folder where images and labels are stored
-            list_path: string, path of the file used to split the dataset (train.txt/val.txt)
-            image_folder: string, path of the images folder
-            labels_folder: string, path of the labels folder
-            transform: transformation to be applied on the images
-            target_transform: transformation to be applied on the labels
 
-        self.images = list containing the paths of the images 
-        self.labels = list contating the paths of the labels
-        """
         super().__init__(root, transforms)
 
-        self.list_path = "train.txt" if train else "val.txt"                              # path to train.txt/val.txt
+        self.list_path = "train.txt" if train else "val.txt"    # path to train.txt/val.txt
         info = json.load(open(f"{root}/{info_file}")) 
         self.train = train          
         self.mapper = dict(info["label2train"])
@@ -122,6 +111,7 @@ class Cityscapes(VisionDataset):
         
         return image, label[0]
 
+#Utility function
 def printImageLabel(image, label):
     info = json.load(open("/Users/gio/Documents/GitHub/BiSeNet/data/Cityscapes/info.json"))
     mean = torch.as_tensor(info["mean"])
